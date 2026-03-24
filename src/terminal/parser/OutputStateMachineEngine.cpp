@@ -858,6 +858,9 @@ bool OutputStateMachineEngine::ActionOscDispatch(const size_t parameter, const s
         }
         break;
     }
+    case OscActionCodes::CurrentWorkingDirectory:
+        _dispatch->SetCurrentWorkingDirectory(string);
+        break;
     case OscActionCodes::Hyperlink:
     {
         std::wstring params;
