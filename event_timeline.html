@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case 22-021085 — Event Timeline</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg: #0d0f13;
+  --surface: #131720;
+  --border: #1e2535;
+  --accent: #4a7cff;
+  --accent2: #ff6b6b;
+  --accent3: #f5a623;
+  --accent4: #50e3c2;
+  --text: #c8d0e0;
+  --muted: #5a6478;
+  --label: #7e8fa8;
+  --phase1: #4a7cff;
+  --phase2: #f5a623;
+  --phase3: #ff6b6b;
+  --phase4: #50e3c2;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+background: var(--bg);
+color: var(--text);
+font-family: 'IBM Plex Sans', sans-serif;
+font-size: 14px;
+line-height: 1.6;
+min-height: 100vh;
+padding: 0;
+}
+
+/* Background grid */
+body::before {
+content: '';
+position: fixed;
+inset: 0;
+background-image:
+linear-gradient(rgba(74,124,255,0.03) 1px, transparent 1px),
+linear-gradient(90deg, rgba(74,124,255,0.03) 1px, transparent 1px);
+background-size: 40px 40px;
+pointer-events: none;
+z-index: 0;
+}
+
+.wrapper {
+position: relative;
+z-index: 1;
+max-width: 960px;
+margin: 0 auto;
+padding: 48px 24px 80px;
+}
+
+/* Header */
+.header {
+margin-bottom: 48px;
+border-bottom: 1px solid var(--border);
+padding-bottom: 32px;
+}
+
+.case-badge {
+font-family: 'IBM Plex Mono', monospace;
+font-size: 11px;
+letter-spacing: 0.15em;
+color: var(--accent);
+text-transform: uppercase;
+background: rgba(74,124,255,0.08);
+border: 1px solid rgba(74,124,255,0.2);
+display: inline-block;
+padding: 4px 12px;
+border-radius: 2px;
+margin-bottom: 16px;
+}
+
+h1 {
+font-family: 'IBM Plex Mono', monospace;
+font-size: 26px;
+font-weight: 600;
+color: #fff;
+line-height: 1.2;
+margin-bottom: 8px;
+letter-spacing: -0.02em;
+}
+
+.subtitle {
+color: var(--label);
+font-size: 14px;
+font-weight: 300;
+}
+
+.meta-row {
+display: flex;
+flex-wrap: wrap;
+gap: 24px;
+margin-top: 20px;
+}
+
+.meta-item {
+display: flex;
+flex-direction: column;
+gap: 2px;
+}
+
+.meta-key {
+font-family: 'IBM Plex Mono', monospace;
+font-size: 10px;
+letter-spacing: 0.1em;
+color: var(--muted);
+text-transform: uppercase;
+}
+
+.meta-val {
+font-size: 13px;
+color: var(--text);
+font-weight: 500;
+}
+
+/* Phase legend */
+.legend {
+display: flex;
+flex-wrap: wrap;
+gap: 12px;
+margin-bottom: 40px;
+}
+
+.legend-item {
+display: flex;
+align-items: center;
+gap: 8px;
+font-size: 12px;
+color: var(--label);
+cursor: pointer;
+padding: 6px 12px;
+border: 1px solid var(--border);
+border-radius: 3px;
+transition: all 0.2s;
+user-select: none;
+}
+
+.legend-item:hover { border-color: var(--muted); }
+.legend-item.active { background: rgba(255,255,255,0.03); }
+
+.legend-dot {
+width: 8px;
+height: 8px;
+border-radius: 50%;
+flex-shrink: 0;
+}
+
+/* Timeline */
+.timeline {
+position: relative;
+}
+
+.timeline::before {
+content: '';
+position: absolute;
+left: 88px;
+top: 0;
+bottom: 0;
+width: 1px;
+background: linear-gradient(to bottom, transparent, var(--border) 40px, var(--border) calc(100% - 40px), transparent);
+}
+
+/* Date separator */
+.date-sep {
+display: flex;
+align-items: center;
+gap: 16px;
+margin: 40px 0 24px;
+padding-left: 0;
+}
+
+.date-sep:first-child { margin-top: 0; }
+
+.date-label {
+font-family: 'IBM Plex Mono', monospace;
+font-size: 11px;
+letter-spacing: 0.12em;
+color: var(--muted);
+text-transform: uppercase;
+white-space: nowrap;
+width: 80px;
+text-align: right;
+flex-shrink: 0;
+}
+
+.date-line {
+flex: 1;
+height: 1px;
+background: linear-gradient(to right, var(--border), transparent);
+margin-left: 24px;
+}
+
+/* Event entry */
+.event {
+display: grid;
+grid-template-columns: 88px 40px 1fr;
+gap: 0;
+margin-bottom: 4px;
+opacity: 0;
+transform: translateY(8px);
+transition: opacity 0.3s, transform 0.3s;
+cursor: default;
+}
+
+.event.visible {
+opacity: 1;
+transform: none;
+}
+
+.event.filtered-out {
+display: none;
+}
+
+.event-time {
+font-family: 'IBM Plex Mono', monospace;
+font-size: 12px;
+color: var(--muted);
+text-align: right;
+padding-top: 12px;
+padding-right: 0;
+white-space: nowrap;
+letter-spacing: 0.05em;
+}
+
+.event-node {
+display: flex;
+flex-direction: column;
+align-items: center;
+padding-top: 16px;
+gap: 0;
+}
+
+.node-dot {
+width: 10px;
+height: 10px;
+border-radius: 50%;
+border: 2px solid;
+background: var(--bg);
+flex-shrink: 0;
+transition: transform 0.2s;
+}
+
+.event:hover .node-dot {
+transform: scale(1.4);
+}
+
+.event-body {
+padding: 10px 0 10px 20px;
+border-radius: 4px;
+}
+
+.event:hover .event-body {
+background: rgba(255,255,255,0.02);
+}
+
+.event-header {
+display: flex;
+align-items: baseline;
+gap: 10px;
+flex-wrap: wrap;
+}
+
+.event-tag {
+font-family: 'IBM Plex Mono', monospace;
+font-size: 9px;
+letter-spacing: 0.12em;
+text-transform: uppercase;
+padding: 2px 7px;
+border-radius: 2px;
+font-weight: 600;
+flex-shrink: 0;
+}
+
+.event-title {
+font-size: 13px;
+font-weight: 500;
+color: #e0e8f5;
+line-height: 1.4;
+}
+
+.event-detail {
+font-size: 12px;
+color: var(--label);
+margin-top: 4px;
+line-height: 1.5;
+font-weight: 300;
+}
+
+.event-detail em {
+font-style: italic;
+color: #8fa0bc;
+}
+
+/* Phase colors */
+.phase-initial .node-dot { border-color: var(--phase1); }
+.phase-initial .event-tag { background: rgba(74,124,255,0.12); color: var(--phase1); }
+
+.phase-negotiation .node-dot { border-color: var(--phase2); }
+.phase-negotiation .event-tag { background: rgba(245,166,35,0.12); color: var(--phase2); }
+
+.phase-escalation .node-dot { border-color: var(--phase3); }
+.phase-escalation .event-tag { background: rgba(255,107,107,0.12); color: var(--phase3); }
+
+.phase-resolution .node-dot { border-color: var(--phase4); }
+.phase-resolution .event-tag { background: rgba(80,227,194,0.12); color: var(--phase4); }
+
+/* Critical event */
+.event.critical .event-body {
+border-left: 2px solid var(--accent2);
+padding-left: 18px;
+background: rgba(255,107,107,0.03);
+}
+
+.event.critical .event-title {
+color: #ffaaaa;
+}
+
+/* Search bar */
+.controls {
+margin-bottom: 32px;
+display: flex;
+gap: 12px;
+align-items: center;
+flex-wrap: wrap;
+}
+
+.search-wrap {
+position: relative;
+flex: 1;
+min-width: 200px;
+}
+
+.search-icon {
+position: absolute;
+left: 12px;
+top: 50%;
+transform: translateY(-50%);
+color: var(--muted);
+font-size: 13px;
+}
+
+input[type="text"] {
+width: 100%;
+background: var(--surface);
+border: 1px solid var(--border);
+border-radius: 3px;
+padding: 9px 12px 9px 36px;
+font-family: 'IBM Plex Mono', monospace;
+font-size: 12px;
+color: var(--text);
+outline: none;
+transition: border-color 0.2s;
+}
+
+input[type="text"]:focus {
+border-color: var(--accent);
+}
+
+input[type="text"]::placeholder {
+color: var(--muted);
+}
+
+.count-label {
+font-family: 'IBM Plex Mono', monospace;
+font-size: 11px;
+color: var(--muted);
+white-space: nowrap;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+@media (max-width: 600px) {
+h1 { font-size: 20px; }
+.timeline::before { left: 68px; }
+.date-label, .event-time { width: 60px; font-size: 10px; }
+.event { grid-template-columns: 60px 32px 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header class="header">
+    <div class="case-badge">WSP · Case No. 22-021085</div>
+    <h1>Officer-Involved Shooting<br>Brent L. Kopacka</h1>
+    <p class="subtitle">1000 SE Latah St., Apt. 311 — Coffee House Apartments, Pullman, WA · Dec. 14–15, 2022</p>
+    <div class="meta-row">
+      <div class="meta-item">
+        <span class="meta-key">Lead Investigator</span>
+        <span class="meta-val">Det. Troy Corkins #D409 / WSP</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-key">Assisting Detectives</span>
+        <span class="meta-val">Sauvé #1138 · Stairet #418 · Stevens #1194</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-key">Subject</span>
+        <span class="meta-val">Brent Lee Kopacka, DOB 10/04/1986 — Deceased</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-key">Sources</span>
+        <span class="meta-val">CAD Log · ISB Timeline Report · Case Logs · ROI</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="search" placeholder="Filter events…" oninput="filterEvents()">
+    </div>
+    <span class="count-label" id="count-label"></span>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item active" data-phase="all" onclick="filterPhase(this,'all')">
+      <span class="legend-dot" style="background:#7e8fa8"></span> All phases
+    </div>
+    <div class="legend-item" data-phase="initial" onclick="filterPhase(this,'initial')">
+      <span class="legend-dot" style="background:var(--phase1)"></span> Initial Response
+    </div>
+    <div class="legend-item" data-phase="negotiation" onclick="filterPhase(this,'negotiation')">
+      <span class="legend-dot" style="background:var(--phase2)"></span> Negotiation
+    </div>
+    <div class="legend-item" data-phase="escalation" onclick="filterPhase(this,'escalation')">
+      <span class="legend-dot" style="background:var(--phase3)"></span> Escalation / Fire Exchanges
+    </div>
+    <div class="legend-item" data-phase="resolution" onclick="filterPhase(this,'resolution')">
+      <span class="legend-dot" style="background:var(--phase4)"></span> Resolution / Investigation
+    </div>
+  </div>
+
+  <div class="timeline" id="timeline"></div>
+
+</div>
+
+<script>
+const events = [
+  { date:'Dec 14, 2022', time:'20:30', phase:'initial', title:'Possible gunshot heard by neighbor', detail:'Crystal Roberts, resident of Apt. 301, hears what sounds like a gunshot but does not call 911.' },
+  { date:'Dec 14, 2022', time:'20:39', phase:'initial', title:'911 call — armed male pacing outside room', detail:'Caller Jordan Baker reports an armed male pacing outside apartment 311. Incident logged at 1000 SE Latah St. Subject described as "Brent, unknown last."' },
+  { date:'Dec 14, 2022', time:'21:06', phase:'initial', title:'Subject identified as Brent L. Kopacka', detail:'DOB 10/04/1986. Resident of Coffee House Apartments, Apt. 311.' }
+];
+
+let activePhase = 'all';
+let searchTerm = '';
+
+function buildTimeline() {
+  const tl = document.getElementById('timeline');
+  tl.innerHTML = '';
+  let lastDate = '';
+
+  events.forEach((ev, i) => {
+    if (ev.date !== lastDate) {
+      const sep = document.createElement('div');
+      sep.className = 'date-sep';
+      sep.innerHTML = `<span class="date-label">${ev.date}</span><div class="date-line"></div>`;
+      tl.appendChild(sep);
+      lastDate = ev.date;
+    }
+
+    const el = document.createElement('div');
+    el.className = `event phase-${ev.phase}${ev.critical ? ' critical' : ''}`;
+    el.dataset.phase = ev.phase;
+    el.dataset.text = (ev.title + ' ' + (ev.detail || '')).toLowerCase();
+
+    const phaseLabels = { initial:'Initial', negotiation:'Negotiation', escalation:'Escalation', resolution:'Resolution' };
+
+    el.innerHTML = `
+      <div class="event-time">${ev.time}</div>
+      <div class="event-node"><div class="node-dot"></div></div>
+      <div class="event-body">
+        <div class="event-header">
+          <span class="event-tag">${phaseLabels[ev.phase]}</span>
+          <span class="event-title">${ev.title}</span>
+        </div>
+        ${ev.detail ? `<div class="event-detail">${ev.detail}</div>` : ''}
+      </div>
+    `;
+    tl.appendChild(el);
+
+    setTimeout(() => el.classList.add('visible'), 30 + i * 18);
+  });
+
+  updateCount();
+}
+
+function filterEvents() {
+  searchTerm = document.getElementById('search').value.toLowerCase();
+  applyFilters();
+}
+
+function filterPhase(btn, phase) {
+  activePhase = phase;
+  document.querySelectorAll('.legend-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function applyFilters() {
+  const evEls = document.querySelectorAll('.event');
+  evEls.forEach(el => {
+    const matchPhase = activePhase === 'all' || el.dataset.phase === activePhase;
+    const matchSearch = !searchTerm || el.dataset.text.includes(searchTerm);
+    el.classList.toggle('filtered-out', !matchPhase || !matchSearch);
+  });
+
+  document.querySelectorAll('.date-sep').forEach(sep => {
+    const dateLabel = sep.querySelector('.date-label').textContent;
+    const hasVisible = [...document.querySelectorAll('.event')].some(ev =>
+      !ev.classList.contains('filtered-out') && getDateForEvent(ev) === dateLabel
+    );
+    sep.style.display = hasVisible ? '' : 'none';
+  });
+
+  updateCount();
+}
+
+function getDateForEvent(ev) {
+  let el = ev.previousElementSibling;
+  while (el) {
+    if (el.classList.contains('date-sep')) return el.querySelector('.date-label').textContent;
+    el = el.previousElementSibling;
+  }
+  return '';
+}
+
+function updateCount() {
+  const visible = document.querySelectorAll('.event:not(.filtered-out)').length;
+  document.getElementById('count-label').textContent = `${visible} of ${events.length} events`;
+}
+
+buildTimeline();
+</script>
+
+</body>
+</html>
